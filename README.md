@@ -12,6 +12,7 @@ What it does not?
 * It does not copy keeps avatars from source Gogs/Gitea to destination Gogs/Gitea.
 
 Tested with;
+* Python 2.7.5
 * Gogs Version: 0.11.4.0405
 * Gitea Version: 1.3.0
 
