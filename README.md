@@ -1,29 +1,29 @@
 # gogs2gitea
 Migration script that helps copy organizations and repositories(with all the history) from Gogs/Gitea to Gogs/Gitea.
 
-What it does?
+## What it does?
 * Creates all the organizations of source Gogs/Gitea on destination Gogs/Gitea
 * Creates all the repositories of each organization of source Gogs/Gitea on destination Gogs/Gitea
 * Migrates repositories of source Gogs/Gitea to destination Gogs/Gitea
 
-Limitations
+## Limitations
 * It does not migrate specific user's organization and repositories. You can use `copy_repo()` function, though.
 * It does not create users on destination Gogs/Gitea
 * It does not create teams on destination Gogs/Gitea. Owner of all the organizations and repositories is `dst_owner_user`.
 * It does not copy avatars from source Gogs/Gitea to destination Gogs/Gitea.
 
-Compatibility
+## Compatibility
 
 Tested with;
 * Python 2.7.5
 * Gogs Version: 0.11.4.0405
 * Gitea Version: 1.3.0
 
-Prerequisites
+## Prerequisites
 * An administrator account and its access token must be created on destination Gogs/Gitea to be used as `dst_owner_user`.
 * Access token of source must belong to a user which owns all the organizations and repositories. Otherwise, organizations and repositories of the given user are copied only.
 
-Hints
+## Hints
 
 Script was created to be read and modified easily. Just tweak it to suit your needs.
 
@@ -73,7 +73,7 @@ copy_all_orgs(gogs_url, gogs_token, gitea_url, gitea_token, owner_user)
 copy_all_repos(gogs_url, gogs_token, gitea_url, gitea_token)
 ```
 
-Usage
+## Usage
 
         python migrate.py [-h] --src_url SRC_URL --src_token SRC_TOKEN --dst_url
                         DST_URL --dst_token DST_TOKEN --dst_owner_user
