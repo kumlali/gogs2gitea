@@ -78,20 +78,26 @@ Equivalent to:
     curl -v \
        -H "Content-Type: application/json" \
        -H "Authorization: token <token>" \
-       http://gogs.mycompany.com/api/v1/user/orgs
+       http://gogs.mycompany.com/api/v1/orgs/<orgname>
 """
-def get_orgs(url, token):
-   return get(get_api_url(url) + '/user/orgs', '', token)
+def get_org(url, token, org):
+    try:
+       return get(get_api_url(url) + '/orgs/' + org, '', token)   
+    except urllib2.HTTPError as err:
+       if err.code == 404:
+           return ''
+       else:
+           raise
 
 """
 Equivalent to:
     curl -v \
        -H "Content-Type: application/json" \
        -H "Authorization: token <token>" \
-       http://gogs.mycompany.com/api/v1/orgs/<orgname>
+       http://gogs.mycompany.com/api/v1/user/orgs
 """
-def get_org(url, token, org):
-   return get(get_api_url(url) + '/orgs/' + org, '', token)
+def get_orgs(url, token):
+   return get(get_api_url(url) + '/user/orgs', '', token)
 
 """
 Equivalent to:
@@ -103,12 +109,77 @@ Equivalent to:
 """
 def create_org(url, token, owner_user, org, full_name='', description='', website='', location=''):
    print 'Organization will be created -> On Git server: ' + url + ', Owner user: ' + owner_user + ', Organization: ' + org
+   if get_org(url, token, org) != '':
+       raise Exception('Organization [' + org + '] already exists on ' + url) 
    post(get_api_url(url) + '/admin/users/' + owner_user + '/orgs', {'username': org, 
                                                                      'full_name': full_name, 
                                                                      'description': description, 
                                                                      'website': website, 
                                                                      'location': location}, token)
    print 'Organization has been created -> On Git server: ' + url + ', Owner user: ' + owner_user + ', Organization: ' + org
+
+"""
+Copies given org on source server to destination server. Repositories 
+are not copied.
+
+Because /orgs/<orgname> (and get_org() accordingly) does not return 
+the owner, we need to know it while creating the organization on 
+destination server. That is why we need dst_owner_user.
+"""
+def copy_org(src_url, src_token, dst_url, dst_token, dst_owner_user, org):
+    print 'Organization migration has been started -> From:' + src_url + ' To: ' + dst_url + ' Destination owner user: ' + dst_owner_user + ' Organization: ' + org
+
+    orgJson = get_org(src_url, src_token, org)
+    if orgJson == '':
+        raise Exception('Organization [' + org + '] does not exist on ' + src_url)
+
+    print 'Organization: '
+    print '    Name: ' + orgJson['username'].encode('utf-8')
+    print '    Full name: ' + orgJson['full_name'].encode('utf-8')
+    print '    Description: ' + orgJson['description'].encode('utf-8')
+    print '    Website: ' + orgJson['website'].encode('utf-8')
+    print '    Location: ' + orgJson['location'].encode('utf-8')
+    print '    Avatar URL: ' + orgJson['avatar_url'].encode('utf-8')
+
+    create_org(dst_url, 
+               dst_token, 
+               dst_owner_user, 
+               orgJson['username'].encode('utf-8'), 
+               orgJson['full_name'].encode('utf-8'), 
+               orgJson['description'].encode('utf-8'), 
+               orgJson['website'].encode('utf-8'), 
+               orgJson['location'].encode('utf-8'))
+
+    print 'Organization migration has been completed -> From:' + src_url + ' To: ' + dst_url + ' Destination owner user: ' + dst_owner_user + ' Organization: ' + org
+
+"""
+Copies all the organizations on source server to destination server.
+
+Because /orgs/<orgname> (and get_org() accordingly) does not return 
+the owner, we need to know it while creating the organization on 
+destination server. That is why we need dst_owner_user.
+"""
+def copy_all_orgs(src_url, src_token, dst_url, dst_token, dst_owner_user):
+    orgs = get_orgs(src_url, src_token)
+    for org in orgs:
+        orgName = org['username']
+        copy_org(src_url, src_token, dst_url, dst_token, dst_owner_user, orgName)
+
+"""
+Equivalent to:
+    curl -v \
+       -H "Content-Type: application/json" \
+       -H "Authorization: token <token>" \
+       http://gogs.mycompany.com/api/v1/repos/MyOrg/MyRepo
+"""
+def get_repo(url, token, org, repo):
+    try:
+       return get(get_api_url(url) + '/repos/' + org + '/' + repo, '', token)
+    except urllib2.HTTPError as err:
+       if err.code == 404:
+           return ''
+       else:
+           raise
 
 """
 Equivalent to:
@@ -130,6 +201,10 @@ Equivalent to:
 """
 def create_repo(url, token, org, repo):
    print 'Repository will be created -> On Git server: ' + url + ', Organization: ' + org + ', Repository: ' + repo
+   if get_org(url, token, org) == '':
+       raise Exception('Organization [' + org + '] does not exist on ' + url) 
+   if get_repo(url, token, org, repo) != '':
+       raise Exception('Repository [' + repo + '] of organization [' + org + '] already exists on ' + url)
    post(get_api_url(url) + '/org/' + org + '/repos', {'name': repo}, token)
    print 'Repository has been created -> On Git server: ' + url + ', Organization: ' + org + ', Repository: ' + repo
 
@@ -142,8 +217,13 @@ Equivalent to:
 """
 def delete_repo(url, token, org, repo):
    print 'Repository will be deleted -> From Git server: ' + url + ', Organization: ' + org + ', Repository: ' + repo
-   delete(get_api_url(url) + '/repos/' + org + '/' + repo, token)
-   print 'Repository has been deleted -> From Git server: ' + url + ', Organization: ' + org + ', Repository: ' + repo
+   if get_org(url, token, org) == '':
+       raise Exception('Organization [' + org + '] does not exist on ' + url) 
+   if get_repo(url, token, org, repo) == '':
+       print 'Repository [' + repo + '] of organization [' + org + '] does not exist on ' + url
+   else:
+       delete(get_api_url(url) + '/repos/' + org + '/' + repo, token)
+       print 'Repository has been deleted -> From Git server: ' + url + ', Organization: ' + org + ', Repository: ' + repo
 
 def delete_all_repos(url, token):
     orgs = get_orgs(url, token)
@@ -170,68 +250,64 @@ Equivalent to:
     $ git -c http.sslVerify=false push --mirror http://<token>@gitea.mycompany.com/MyOrg/MyRepo.git
     $ rm -rf MyRepo.git
 """
-def migrate_repo(src_url, dst_url):
-    repo_dir = src_url.split('/')[-1]
+def migrate_repo(src_url, src_token, dst_url, dst_token, org, repo):
+    print 'Repository migration has been started -> From:' + src_url + ', To: ' + dst_url + ', Organization: ' + org + ', Repository: ' + repo
+
+    repo_dir = repo + '.git'
     if os.path.exists(repo_dir):
         print repo_dir + ' is already exist. It will be deleted...'
         subprocess.check_call(['rm', '-rf', repo_dir])
-    print 'Repository migration has been started -> From:' + src_url + ' To: ' + dst_url
-    subprocess.check_call(['git', '-c', 'http.sslVerify=false', 'clone', '--bare', src_url])
+
+    src_repo_url = get_token_inserted_url(src_url, src_token) + '/' + org + '/' + repo + '.git'
+    dst_repo_url = get_token_inserted_url(dst_url, dst_token) + '/' + org + '/' + repo + '.git'
+
+    subprocess.check_call(['git', '-c', 'http.sslVerify=false', 'clone', '--bare', src_repo_url])
     os.chdir(repo_dir)
-    subprocess.check_call(['git', '-c', 'http.sslVerify=false', 'push', '--mirror', dst_url])
+    subprocess.check_call(['git', '-c', 'http.sslVerify=false', 'push', '--mirror', dst_repo_url])
     os.chdir('..')
     subprocess.check_call(['rm', '-rf', repo_dir]) 
-    print 'Repository migration has been completed -> From:' + src_url + ' To: ' + dst_url
+    print 'Repository migration has been completed -> From:' + src_url + ', To: ' + dst_url + ', Organization: ' + org + ', Repository: ' + repo
 
-def create_and_migrate_all_repos(src_url, src_token, dst_url, dst_token):
+"""
+Copies given repo of given org on source server to destination server.
+
+It simply does create_repo() and migrate_repo().
+"""
+def copy_repo(src_url, src_token, dst_url, dst_token, org, repo):
+    if get_org(src_url, src_token, org) == '':
+        raise Exception('Organization [' + org + '] does not exist on ' + src_url) 
+    if get_repo(src_url, src_token, org, repo) == '':
+        raise Exception('Repository [' + repo + '] of organization [' + org + '] does not exist on ' + src_url)
+
+    create_repo(dst_url, dst_token, org, repo)
+    migrate_repo(src_url, src_token, dst_url, dst_token, org, repo)
+
+"""
+   Copies all the repositories of each organization on source server 
+   to destination server.
+   
+   All the organizations of source server must exist on destination 
+   server. copy_all_orgs() can be called for this.
+"""
+def copy_all_repos(src_url, src_token, dst_url, dst_token):
     orgs = get_orgs(src_url, src_token)
     for org in orgs:
         orgName = org['username']
         repos = get_repos(src_url, src_token, orgName)
         for repo in repos:
             repoName = repo['name']
-            create_repo(dst_url, dst_token, orgName, repoName)
-            src_repo_url = get_token_inserted_url(src_url, src_token) + '/' + orgName + '/' + repoName + '.git'
-            dst_repo_url = get_token_inserted_url(dst_url, dst_token) + '/' + orgName + '/' + repoName + '.git'
-            migrate_repo(src_repo_url, dst_repo_url)
+            copy_repo(src_url, src_token, dst_url, dst_token, orgName, repoName)
 
-"""
-   Because /orgs/<orgname> (and get_org() accordingly) does not return 
-   the owner, we need to know it while creating the organization on 
-   destination server. That is why we need dst_owner_user.
-"""
-def create_and_migrate_org(src_url, src_token, dst_url, dst_token, dst_owner_user, org):
-    print 'Organization migration has been started -> From:' + src_url + ' To: ' + dst_url + ' Destination owner user: ' + dst_owner_user + ' Organization: ' + org
-    orgJson = get_org(src_url, src_token, org)
-    print 'Organization: '
-    print '    Name: ' + orgJson['username'].encode('utf-8')
-    print '    Full name: ' + orgJson['full_name'].encode('utf-8')
-    print '    Description: ' + orgJson['description'].encode('utf-8')
-    print '    Website: ' + orgJson['website'].encode('utf-8')
-    print '    Location: ' + orgJson['location'].encode('utf-8')
-    print '    Avatar URL: ' + orgJson['avatar_url'].encode('utf-8')
-    create_org(dst_url, 
-               dst_token, 
-               dst_owner_user, 
-               orgJson['username'].encode('utf-8'), 
-               orgJson['full_name'].encode('utf-8'), 
-               orgJson['description'].encode('utf-8'), 
-               orgJson['website'].encode('utf-8'), 
-               orgJson['location'].encode('utf-8'))
-    print 'Organization migration has been completed -> From:' + src_url + ' To: ' + dst_url + ' Destination owner user: ' + dst_owner_user + ' Organization: ' + org
-
-"""
-   Because /orgs/<orgname> (and get_org() accordingly) does not return 
-   the owner, we need to know it while creating the organization on 
-   destination server. That is why we need dst_owner_user.
-"""
-def create_and_migrate_all_orgs(src_url, src_token, dst_url, dst_token, dst_owner_user):
-    orgs = get_orgs(src_url, src_token)
+def print_orgs_and_repos(url, token):
+    orgs = get_orgs(url, token)
     for org in orgs:
         orgName = org['username']
-        create_and_migrate_org(src_url, src_token, dst_url, dst_token, dst_owner_user, orgName)
-
+        print orgName
+        repos = get_repos(url, token, orgName)
+        for repo in repos:
+            repoName = repo['name']
+            print "\t" + repoName
 
 parse_arguments()
-create_and_migrate_all_orgs(arg_src_url, arg_src_token, arg_dst_url, arg_dst_token, arg_dst_owner_user)
-create_and_migrate_all_repos(arg_src_url, arg_src_token, arg_dst_url, arg_dst_token)
+copy_all_orgs(arg_src_url, arg_src_token, arg_dst_url, arg_dst_token, arg_dst_owner_user)
+copy_all_repos(arg_src_url, arg_src_token, arg_dst_url, arg_dst_token)
